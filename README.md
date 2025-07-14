@@ -13,7 +13,7 @@ This project analyzes dialogues from the popular TV show *Friends* using **web s
 ## Key Project Features
 ### 1. Dialogue Extraction
 - **Method**: HTML scraping with `rvest` to extract `<p>` elements containing speech.
-- **Filtering**: Only lines starting with a character's name (e.g., `Joey:`) are kept.
+- **Filtering**: Only lines starting with a character's name (e.g., `Joey`) are kept.
 - **Result**: Over 50,000 cleaned lines of dialogue ready for analysis.
 
 ### 2. Word Frequency Analysis
