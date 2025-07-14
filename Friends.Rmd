@@ -1,0 +1,365 @@
+---
+title: "Friends Analysis"
+output: html_document 
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load packages 
+library(rvest)
+library(tidyverse)
+library(knitr)
+library(dplyr)
+library(tidytext)
+library(ggplot2)
+library(RColorBrewer)
+library(readr)
+library(SnowballC)
+library(wordcloud)
+library(wordcloud2)
+```
+
+# {.tabset}
+## <span style="color: black;">Presentation</span>
+
+<!--Titles-->
+<style>
+.title-main {
+  font-size: 20px; 
+  font-weight: bold; 
+  margin-bottom: 20px; 
+  color: red; }
+  
+.title-sub {
+  font-size: 17px; 
+  font-weight: bold; 
+  margin-bottom: 15px; 
+  color: black; }
+</style>
+
+<p class="title-main">Introduction</p>
+The **Friends TV show** has been a cultural phenomenon for decades, with its characters, dialogues, and humor shaping modern sitcoms. This project aims to analyze the **dialogues** of the show using **text mining and sentiment analysis techniques**.
+
+By leveraging **web scraping**, **word frequency analysis**, and **sentiment detection**, we aim to answer the following questions:
+\
+**Which words are most frequently used by the characters?**
+
+
+This study provides a **quantitative perspective** on *Friends*, allowing us to uncover patterns in speech, sentiment, and emotional expression.
+
+\
+\
+
+<center> 
+<img src="https://i0.wp.com/images.liveuniversity.it/sites/2/2021/05/friends-serie-tv.jpg?fit=1200,675&ssl=1" width="600">
+</center>
+\
+\
+
+<p class="title-sub">Key Steps of the Analysis:</p>
+- **Data Extraction & Cleaning:** Web scraping scripts are used to extract dialogues from episode scripts.
+- **Word Frequency Analysis:** The most commonly used words by characters are identified.
+- **Sentiment Analysis:** Multiple sentiment lexicons are applied to evaluate emotional tones.
+- **Conclusion & Insights:** Patterns in character speech and emotions are discussed.
+
+By applying these methods, we can uncover **how language and emotions shape the show's impact** on audiences worldwide.
+\
+\
+
+
+
+
+## <span style="color: black;">Extraction and Cleaning</span>
+<p class="title-main">Extraction and Cleaning of Dialogues</p>
+
+The first step in our analysis involves **extracting and cleaning the dialogues** from the Friends TV show scripts. Since the scripts are stored as **HTML files**, we use **web scraping techniques** to extract text from the `<p>` tags containing the dialogues.
+\
+\
+
+<p class="title-sub">To ensure a clean and structured dataset, we apply the following steps:</p>
+- **Parsing the HTML files** to extract relevant textual content.
+- **Filtering the dialogues** by identifying lines that start with a character’s name.
+- **Splitting the dialogues** into two distinct columns: **Character** and **Dialogue**.
+- **Removing special characters and unwanted spaces** for better processing.
+\
+\
+
+<p class="title-sub">Sample of Extracted Data</p>
+
+Below is a **sample preview** of the cleaned dataset. Each row represents a dialogue spoken by a character, along with the corresponding script file name.
+
+\
+\
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Define the path to the folder containing all HTML episode files
+dir_path <- "C:/Users/valen/OneDrive/Documents/BSB/Cours/SS2 - Webscraping & Text mining (HTML & CSS)/Séance 4/ALL_Seasons/ALL_Seasons"
+
+# List all HTML files in the folder
+files <- list.files(dir_path, pattern = "*.html", full.names = TRUE)
+
+# Function to extract dialogues from a single HTML file
+extract_dialogues <- function(file) {
+  page <- read_html(file)
+  
+  lines <- page %>% html_nodes("p") %>% html_text(trim = TRUE)
+  
+  dialogues <- lines[grepl("^\\s*[A-Z][a-z]+:", lines)]
+  
+# Create a table with character name, dialogue, and file name
+  data <- tibble(
+    Character = gsub(":.*", "", dialogues), 
+    Dialogue = gsub("^[^:]+: ", "", dialogues),
+    File = basename(file) 
+  )
+  
+  return(data)
+}
+
+# Apply the function to all files and merge the results into one table
+all_dialogues <- map_dfr(files, extract_dialogues)
+head(all_dialogues)
+```
+## <span style="color: black;">Frequent Words</span>
+
+<p class="title-main">Exploring the Most Frequent Words</p>
+<p class="title-sub">Word Frequency Analysis</p>
+In this section, we analyze the frequency of words used in the dialogues extracted from the *Friends* scripts. By converting all text to lowercase, removing punctuation, and filtering out common stop words, we create a cleaned corpus that highlights the most significant words. The process includes tokenization, where the dialogues are split into individual words, allowing us to calculate the frequency of each term.
+
+The resulting **word cloud** visualization displays the most frequently used words, with the size of each word proportional to its frequency in the dataset. This analysis reveals recurring themes and conversational patterns. For example, words such as **"yeah"**, **"hey"**, and various character names appear prominently, reflecting the casual and familiar tone of the series.
+
+Furthermore, this exploration helps us understand the distinct vocabulary of each character. The differences in word usage provide insights into their personality traits and the roles they play within the storyline. Overall, the word frequency analysis is a fundamental step that sets the stage for subsequent sentiment analysis and deeper text mining efforts.
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Clean the dialogues: convert to lowercase and remove punctuation
+dialogues_clean <- all_dialogues %>%
+  mutate(Dialogue = tolower(Dialogue)) %>%
+  mutate(Dialogue = str_replace_all(Dialogue, "[[:punct:]]", ""))
+
+# Tokenize the cleaned dialogue: split each line into individual words
+word_by_word <- dialogues_clean %>% unnest_tokens(words, Dialogue)
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Count how many times each character says each word, then sort by most frequent
+word_by_word <- word_by_word %>%
+  group_by(Character, words) %>%
+  count() %>%
+  rename(occurrences = n) %>%
+  arrange(desc(occurrences))
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Remove common stop words to keep only meaningful words
+data("stop_words")
+useful_words <- anti_join(word_by_word, stop_words, by = c("words" = "word"))
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Apply stemming to group similar words and count total occurrences per character
+stem_by_stem <- useful_words %>%
+  mutate(stems = wordStem(words, language = "en")) %>% 
+  group_by(Character, stems) %>%
+  summarise(occurrences = sum(occurrences)) %>%
+  arrange(desc(occurrences))
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Create a word cloud of Joey's most frequent word stems
+joey_words <- stem_by_stem %>% filter(Character == "Joey")
+
+wordcloud(words = joey_words$stems, freq = joey_words$occurrences, min.freq = 5,
+          max.words = 50, colors = brewer.pal(8, "Dark2"))
+```
+<p class="title-sub">The analysis uncovers several key insights:</p>
+- **Common Expressions:** Frequently used words indicate a casual, conversational style, characteristic of the show's humor.
+- **Character-Specific Vocabulary:** Variations in word usage among characters suggest unique speech patterns and highlight their individual traits.
+- **Thematic Trends:** Recurring terms may signal central themes or topics that are prevalent throughout the dialogues, offering a glimpse into the show’s narrative focus.
+ 
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Create an interactive word cloud for Joey's most frequent stems
+wordcloud2(joey_words[2:3] %>% filter(occurrences > 10), minSize = 3, color = "random-light")
+```
+
+
+
+## <span style="color: black;">Sentiment Analysis</span>
+
+<p class="title-main">Sentiment Analysis</p>
+<p class="title-sub">General Sentiment Distribution</p>
+
+The sentiment analysis provides an overview of the emotional tone present in the dialogues. The first bar chart illustrates the **distribution of positive and negative sentiments** across all dialogues. It is evident that **negative sentiments slightly outweigh positive ones**, suggesting that the show's dialogues contain a significant amount of sarcasm, conflict, or dramatic tension. However, the presence of **a strong proportion of positive sentiments** confirms the show's comedic and uplifting nature.
+
+\
+\
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Function to load the NRC emotion lexicon, either from a local file or via tidytext
+load_nrc <- function() {
+  nrc_path <- "NRC-Emotion-Lexicon-Wordlevel-v0.92.txt"
+  if (file.exists(nrc_path)) {
+    nrc <- read.table(nrc_path, header = FALSE, sep = "\t", quote = "", stringsAsFactors = FALSE)
+    colnames(nrc) <- c("word", "sentiment", "association")
+    nrc <- nrc %>% filter(association == 1) %>% select(word, sentiment)
+  } else {
+    nrc <- get_sentiments("nrc")
+  }
+  return(nrc)
+}
+
+# Load and clean the NRC lexicon to merge multiple sentiments per word
+nrc <- load_nrc()
+nrc <- aggregate(nrc$sentiment, by = list(word = nrc$word), FUN = paste)
+nrc <- mutate(nrc, sentiment = sapply(nrc$x, function(x) paste(unique(unlist(strsplit(x, ","))), collapse=",")))
+nrc <- select(nrc, c("word", "sentiment"))
+
+# Merge multiple sentiment lexicons
+sentiments <- get_sentiments("bing") 
+sentiments <- full_join(sentiments, get_sentiments("loughran"), by = "word")
+sentiments <- full_join(sentiments, nrc, by = "word")
+sentiments <- full_join(sentiments, get_sentiments("afinn"), by = "word")
+
+# Rename columns for consistency
+colnames(sentiments) <- c("words", "bing", "loughran", "nrc", "afinn")
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Join useful words with sentiment data to assign emotions or polarity to each word
+data_sentiment <- inner_join(useful_words, sentiments, by = c("words" = "words"))
+```
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Visualize the total occurrences of positive vs negative words using the Bing lexicon
+pos_vs_neg <- aggregate(data_sentiment$occurrences, by = list(sentiment = data_sentiment$bing), FUN = sum)
+
+nb_colors <- length(unique(pos_vs_neg$sentiment))
+palette_colors <- brewer.pal(max(3, min(nb_colors, 8)), name = "Set2")
+
+ggplot(pos_vs_neg, aes(x = sentiment, y = x, fill = sentiment)) +
+  geom_col() +
+  scale_fill_manual(values = palette_colors) +
+  theme_minimal()+
+  theme(legend.position = "none")
+```
+\
+\
+
+<p class="title-sub">Detailed Sentiment Categories</p>
+
+Breaking down the sentiment analysis further, the second chart classifies dialogues into **more nuanced emotional categories**, such as **anticipation, fear, trust, sadness, anger, and surprise**. The most frequent emotions are **trust and anticipation**, highlighting how characters frequently express expectations, hope, and reliance on one another. On the other hand, **negative emotions such as sadness, fear, and anger** are also well represented, indicating moments of conflict and emotional distress that add depth to the storyline.
+\
+\
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Visualize the total occurrences of sentiment categories from the Loughran lexicon
+pos_vs_neg <- aggregate(data_sentiment$occurrences, by = list(sentiment = data_sentiment$loughran), FUN = sum)
+
+nb_colors <- length(unique(pos_vs_neg$sentiment))
+palette_colors <- brewer.pal(min(nb_colors, 8), name = "Set2")
+
+ggplot(pos_vs_neg, aes(x = sentiment, y = x, fill = sentiment)) +
+  geom_col() +
+  scale_fill_manual(values = palette_colors) +
+  theme_minimal()+
+  theme(legend.position = "none")
+```
+\
+\
+<p class="title-sub">Sentiment Polarity</p>
+
+The third chart offers a **sentiment polarity distribution**, categorizing dialogues based on their intensity. The majority of dialogues fall within a **neutral sentiment range**, with some strongly **negative** and **positive peaks**. The slight dominance of **negative sentiment** reinforces the presence of sarcasm and humorous conflict, which are core elements of the show’s comedic structure. Interestingly, **strongly positive dialogues** also play a key role, likely in moments of emotional resolution, friendship, or romance.
+
+\
+\
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Visualize the distribution of AFINN sentiment scores based on word occurrences
+range <- aggregate(data_sentiment$occurrences, by = list(sentiment = data_sentiment$afinn), FUN = sum)
+
+nb_colors <- length(unique(range$sentiment))
+palette_colors <- brewer.pal(min(nb_colors, 11), name = "RdYlGn")
+
+
+ggplot(range, aes(x = sentiment, y = x, fill = as.factor(sentiment))) +
+  geom_col() +
+  scale_fill_manual(values = palette_colors) +
+  theme_minimal()+
+  theme(legend.position = "none")
+```
+\
+\
+<p class="title-sub">Emotion Correlation in Dialogues</p>
+
+The final graph provides a **detailed breakdown of multiple emotions associated with dialogues**. Combinations such as **"joy and trust"** or **"anticipation and surprise"** are among the most common, showing how dialogues often blend multiple emotions to create engaging storytelling. Meanwhile, **negative clusters such as "anger and disgust" or "fear and sadness"** appear less frequently but are still present, emphasizing the dramatic and serious moments in the series. The diversity in emotional expression is a testament to the show's ability to balance humor with meaningful character development.
+
+\
+\ 
+
+```{r error=FALSE, message=FALSE, warning=FALSE, echo=FALSE}
+# Visualize the most frequent NRC emotions
+more_precise <- aggregate(data_sentiment$occurrences, by = list(sentiment = data_sentiment$nrc), FUN = sum)
+more_precise <- more_precise %>% filter(x > 300)
+more_precise <- arrange(more_precise, desc(x))
+
+nb_colors <- length(unique(more_precise$sentiment))
+palette_colors <- brewer.pal(min(nb_colors, 8), name = "Set2")
+
+if (nb_colors > length(palette_colors)) {
+  palette_colors <- colorRampPalette(palette_colors)(nb_colors)  
+}
+
+
+ggplot(more_precise, aes(x = x, y = sentiment, fill = sentiment)) +
+  geom_col() +
+  scale_fill_manual(values = palette_colors) +
+  theme_minimal()+
+  theme(legend.position = "none") 
+```
+
+
+## <span style="color: black;">Conclusion</span> 
+
+<p class="title-main">Conclusion</p>
+
+<p class="title-sub">Summary of Findings</p>
+
+This analysis of the dialogues from *Friends* has provided key insights into the structure and emotions conveyed throughout the show. From the extraction and cleaning of dialogues to the exploration of frequent words and sentiment analysis, we have uncovered patterns that define the linguistic style and emotional tone of the series.
+
+\
+
+<p class="title-sub">Key Observations</p>
+
+1. **Dialogue Structure**: The extraction process revealed a clear pattern in how characters interact, with informal language, humor, and recurring phrases playing a crucial role in defining their personalities.
+2. **Frequent Words**: The word cloud analysis highlighted the prominence of casual, conversational words such as "hey," "yeah," and character names, emphasizing the informal and friendly tone of the show.
+3. **Sentiment Trends**: The sentiment analysis demonstrated that while negative sentiments slightly outweigh positive ones, a large portion of the dialogue remains neutral. This suggests a balance between humor, sarcasm, and emotional depth in the storytelling.
+4. **Emotional Complexity**: The deeper sentiment breakdown revealed that trust, anticipation, and joy are dominant emotions, but elements of sadness, fear, and anger contribute to the show's dramatic moments.
+
+\
+
+<center> 
+<img src="https://voolas.com/wp-content/uploads/2015/09/friends.jpg" width="600">
+</center>
+\
+\
+
+<p class="title-sub">Implications and Future Work</p>
+
+The findings confirm that *Friends* employs a mix of **lighthearted humor, emotional engagement, and strong character-driven dialogue**, making it one of the most iconic sitcoms of all time. Future analyses could focus on:
+\
+- **Character-specific sentiment analysis**, exploring which characters contribute the most to positive or negative emotions.
+\
+- **Topic modeling**, identifying recurring themes within the dialogues.
+\
+- **Comparison with other sitcoms**, to understand whether similar sentiment and word usage trends appear in other popular series.
+
+\
+
+<p class="title-sub">Final Thoughts</p>
+
+This study highlights the richness of *Friends* as a source of natural language and emotional dynamics. By leveraging **text mining techniques**, we have gained a deeper understanding of how dialogue is structured in one of the most beloved TV shows. The combination of humor, emotional depth, and relatable characters remains a key factor in its lasting popularity.
+
+\
+\
+
+
+
