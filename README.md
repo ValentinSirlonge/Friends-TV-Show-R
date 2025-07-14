@@ -1,5 +1,6 @@
 # Friends TV Show Dialogue Analysis
-This project analyzes dialogues from the popular TV show *Friends* using **web scraping**, **text mining**, and **sentiment analysis** techniques. The goal is to uncover linguistic patterns and emotional dynamics among the main characters.
+This project analyzes dialogues from the popular TV show *Friends* using **web scraping**, **text mining**, and **sentiment analysis** techniques. 
+The goal is to uncover linguistic patterns and emotional dynamics among the main characters.
 
 
 ## Project Overview
