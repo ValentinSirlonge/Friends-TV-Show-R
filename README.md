@@ -38,3 +38,5 @@ This project analyzes dialogues from the popular TV show *Friends* using **web s
 ### 4. Visualization
 - Graphs using `ggplot2` for emotional distribution, polarity scores, and most frequent terms.
 - Dynamic and interactive word clouds.
+
+
